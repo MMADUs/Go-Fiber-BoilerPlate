@@ -1,14 +1,13 @@
 package middleware
 
 import (
-	"app2/config"
-	"app2/model"
+	"app/model"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
 
-func GetCredential(c *fiber.Ctx) error {
+func (m *implMiddleware) GetCredential(c *fiber.Ctx) error {
 	user := &model.User{}
 
 	id := c.Locals("user_id")
@@ -19,9 +18,7 @@ func GetCredential(c *fiber.Ctx) error {
 		})
 	}
 
-	db := config.GetDB()
-
-	if err := db.Select("id", "username", "email", "phone_number").Where("id = ?", id).First(user).Error; err != nil {
+	if err := m.db.Select("id", "username", "email", "phone_number").Where("id = ?", id).First(user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"message": "Invalid session",

@@ -8,7 +8,7 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
-func Authenticate(c *fiber.Ctx) error {
+func (m *implMiddleware) Authenticate(c *fiber.Ctx) error {
 	userToken := c.Cookies("token")
 
 	if userToken == "" {

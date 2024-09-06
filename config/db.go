@@ -5,20 +5,14 @@ import (
 	"log"
 	"os"
 
-	"app2/model"
-	
+	"app/model"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
-type Dbinstance struct {
-	Db *gorm.DB
-}
-
-var DB Dbinstance
-
-func ConnectDB() error {
+func ConnectDB() *gorm.DB {
 	dsn := fmt.Sprintf(
 		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Jakarta",
 		os.Getenv("DB_HOST"),
@@ -33,50 +27,29 @@ func ConnectDB() error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("failed to connect to database: %v", err)
+		log.Fatalf("failed to connect to database: %v", err)
 	}
 
 	log.Println("connected to database")
 	db.Logger = logger.Default.LogMode(logger.Info)
 
-	err = db.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"").Error
-	if err != nil {
-		return fmt.Errorf("failed to create extension: %v", err)
-	}
-
 	if migrate := os.Getenv("MIGRATE"); migrate == "TRUE" {
 		log.Println("running migrations")
-		db.AutoMigrate(&model.Category{}, &model.Product{}, &model.User{})
+
+		err = db.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"").Error
+		if err != nil {
+			log.Fatalf("failed to create extension: %v", err)
+		}
+
+		if err := db.AutoMigrate(&model.User{}); err != nil {
+			log.Fatalf("failed to perform auto migration: %v", err)
+		}
 	}
 
-	DB = Dbinstance{
-		Db: db,
-	}
-
-	return nil
+	return db
 }
 
-func GetDB() *gorm.DB {
-	return DB.Db
-}
-
-func CloseDB() {
-	db := GetDB()
-
-	if db == nil {
-		log.Println("No database connection to close")
-		return
-	}
-
-	DbConnection, err := db.DB()
-	if err != nil {
-		log.Println("Error getting DB from gorm:", err)
-		return
-	}
-
-	err = DbConnection.Close()
-	if err != nil {
-		log.Println("Error closing DB:", err)
-		return
-	}
+func CloseDB(db *gorm.DB) {
+	sqlDB, _ := db.DB()
+	sqlDB.Close()
 }

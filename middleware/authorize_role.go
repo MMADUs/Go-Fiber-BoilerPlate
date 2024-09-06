@@ -1,12 +1,12 @@
 package middleware
 
 import (
-	"app2/model"
+	"app/model"
 
 	"github.com/gofiber/fiber/v2"
 )
 
-func Authorize(allowedRoles ...int) fiber.Handler {
+func (m *implMiddleware) Authorize(allowedRoles ...int) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		user, ok := c.Locals("user").(*model.User)
 		if !ok {

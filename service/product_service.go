@@ -4,33 +4,31 @@ import (
 	"fmt"
 	"strconv"
 
-	"app2/config"
-	"app2/middleware"
-	"app2/model"
+	"app/model"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
 
-func ProductGroup(router fiber.Router) {
-	ProductGroup := router.Group("/product")
-
-	ProductGroup.Post("/", middleware.Authenticate, middleware.GetCredential, middleware.Authorize(0, 1), CreateProduct)
-	ProductGroup.Get("/", GetAllProducts)
-	ProductGroup.Get("/page", PaginatedProduct)
-	ProductGroup.Get("/:id", GetProductById)
-	ProductGroup.Put("/:id", middleware.Authenticate, middleware.GetCredential, UpdateProduct)
-	ProductGroup.Delete("/:id", middleware.Authenticate, middleware.GetCredential, DeleteProduct)
+type ProductService interface {
+	CreateProduct(c *fiber.Ctx) error
+	GetAllProducts(c *fiber.Ctx) error
+	GetProductById(c *fiber.Ctx) error
+	PaginatedProduct(c *fiber.Ctx) error
+	UpdateProduct(c *fiber.Ctx) error
+	DeleteProduct(c *fiber.Ctx) error
 }
 
-/*
-*
-*
-*
-*
-*
- */
+type implProductService struct {
+	db *gorm.DB
+}
+
+func NewProductService(db *gorm.DB) ProductService {
+	return &implProductService{
+		db: db,
+	}
+}
 
 type ProductStruct struct {
 	Name       string  `json:"name" validate:"required,min=1,max=100"`
@@ -38,9 +36,7 @@ type ProductStruct struct {
 	CategoryID uint    `json:"category_id" validate:"required"`
 }
 
-// create product
-
-func CreateProduct(c *fiber.Ctx) error {
+func (s *implProductService) CreateProduct(c *fiber.Ctx) error {
 	body := new(ProductStruct)
 
 	// user := c.Locals("user").(*model.User)
@@ -66,9 +62,7 @@ func CreateProduct(c *fiber.Ctx) error {
 		CategoryID: body.CategoryID,
 	}
 
-	db := config.GetDB()
-
-	if err := db.Create(product).Error; err != nil {
+	if err := s.db.Create(product).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "failed to create category",
 		})
@@ -79,22 +73,10 @@ func CreateProduct(c *fiber.Ctx) error {
 	})
 }
 
-/*
-*
-*
-*
-*
-*
- */
-
-// get all product
-
-func GetAllProducts(c *fiber.Ctx) error {
+func (s *implProductService) GetAllProducts(c *fiber.Ctx) error {
 	products := make([]model.Product, 0)
 
-	db := config.GetDB()
-
-	if err := db.Preload("Category").Find(&products).Error; err != nil {
+	if err := s.db.Preload("Category").Find(&products).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "unable to get all products",
 		})
@@ -103,17 +85,7 @@ func GetAllProducts(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(products)
 }
 
-/*
-*
-*
-*
-*
-*
- */
-
-// paginate product
-
-func PaginatedProduct(c *fiber.Ctx) error {
+func (s *implProductService) PaginatedProduct(c *fiber.Ctx) error {
 	sortOrder := c.Query("sort", "asc")
 
 	page, err := strconv.Atoi(c.Query("page", "0"))
@@ -131,9 +103,7 @@ func PaginatedProduct(c *fiber.Ctx) error {
 
 	products := make([]model.Product, 0)
 
-	db := config.GetDB()
-
-	query := db.Preload("Category").Model(&model.Product{}).Where("name ILIKE ?", "%"+search+"%")
+	query := s.db.Preload("Category").Model(&model.Product{}).Where("name ILIKE ?", "%"+search+"%")
 
 	var totalRows int64
 	if err := query.Count(&totalRows).Error; err != nil {
@@ -164,24 +134,12 @@ func PaginatedProduct(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(response)
 }
 
-/*
-*
-*
-*
-*
-*
- */
-
-// get product by id
-
-func GetProductById(c *fiber.Ctx) error {
+func (s *implProductService) GetProductById(c *fiber.Ctx) error {
 	product := &model.Product{}
 
 	id := c.Params("id")
 
-	db := config.GetDB()
-
-	if err := db.Preload("Category").First(product, id).Error; err != nil {
+	if err := s.db.Preload("Category").First(product, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"message": "Product not found",
@@ -195,17 +153,7 @@ func GetProductById(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(product)
 }
 
-/*
-*
-*
-*
-*
-*
- */
-
-// update product
-
-func UpdateProduct(c *fiber.Ctx) error {
+func (s *implProductService) UpdateProduct(c *fiber.Ctx) error {
 	body := new(ProductStruct)
 
 	id := c.Params("id")
@@ -230,9 +178,7 @@ func UpdateProduct(c *fiber.Ctx) error {
 		CategoryID: body.CategoryID,
 	}
 
-	db := config.GetDB()
-
-	if err := db.Model(&model.Product{}).Where("id = ?", id).Updates(product).Error; err != nil {
+	if err := s.db.Model(&model.Product{}).Where("id = ?", id).Updates(product).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"message": "Product not found",
@@ -250,24 +196,12 @@ func UpdateProduct(c *fiber.Ctx) error {
 	})
 }
 
-/*
-*
-*
-*
-*
-*
- */
-
-// delete product
-
-func DeleteProduct(c *fiber.Ctx) error {
+func (s *implProductService) DeleteProduct(c *fiber.Ctx) error {
 	product := &model.Product{}
 
 	id := c.Params("id")
 
-	db := config.GetDB()
-
-	if err := db.Delete(product, id).Error; err != nil {
+	if err := s.db.Delete(product, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"message": "Product not found",
